@@ -1,10 +1,10 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-
+using System.Text.Json.Serialization;
 
 namespace Auditorias.Domain.Entities
 {
-    [Table("Responsable")]
+    [Table("Responsables")]
     public class Responsable
     {
         [Key]
@@ -20,6 +20,7 @@ namespace Auditorias.Domain.Entities
         [MaxLength(50)]
         public string Area { get; set; } = string.Empty;
 
+        [JsonIgnore]
         public ICollection<Auditoria> Auditorias { get; set; } = new List<Auditoria>();
     }
 }
