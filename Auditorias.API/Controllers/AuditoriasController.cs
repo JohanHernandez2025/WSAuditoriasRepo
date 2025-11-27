@@ -15,10 +15,10 @@ namespace Auditorias.API.Controllers
         private readonly AuditoriasDbContext _context;
         private readonly ILogger<AuditoriasController> _logger;
 
-        public AuditoriasController(AuditoriasDbContext context,ILogger<AuditoriasController> logger) // 👈 INYECCIÓN
+        public AuditoriasController(AuditoriasDbContext context, ILogger<AuditoriasController> logger) // 👈 INYECCIÓN
         {
             _context = context;
-            _logger = logger; 
+            _logger = logger;
         }
 
         //// -------------------------------------------------------------------
@@ -31,7 +31,7 @@ namespace Auditorias.API.Controllers
         /// <param name="id">El ID de la auditoría a consultar.</param>
         /// <returns>La entidad Auditoría o un código 404 si no se encuentra.</returns>
         // GET: api/Auditorias/5
-       
+
         [HttpGet("ConsultarAuditoria/{id}")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -46,7 +46,7 @@ namespace Auditorias.API.Controllers
             {
                 _logger.LogWarning("Consulta de Auditoría fallida. ID {AuditoriaId} no encontrado.", id);
                 return NotFound(new
-                { 
+                {
                     Mensaje = $"Error: La Auditoría con ID {id} no fue encontrada."
                 });
             }
@@ -58,7 +58,7 @@ namespace Auditorias.API.Controllers
             return Ok(new
             {
                 Mensaje = $"Consulta exitosa. Se encontró la Auditoría con ID {auditoria.Id}.",
-                Auditoria = auditoria 
+                Auditoria = auditoria
             });
         }
 
@@ -73,7 +73,7 @@ namespace Auditorias.API.Controllers
         /// <param name="auditoria">El objeto Auditoría con los nuevos datos.</param>
         /// <returns>Un código 204 No Content si es exitoso, o 400/404 si hay errores.</returns>
         // PUT: api/Auditorias/5
-     
+
         [HttpPut("ActualizaAuditoria/{id}")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -154,8 +154,8 @@ namespace Auditorias.API.Controllers
         /// 
 
         // POST: api/Auditorias/CambiarEstado/5
-        [HttpPost("CambiarEstado/{id}")] 
-        [ProducesResponseType(StatusCodes.Status200OK)] 
+        [HttpPost("CambiarEstado/{id}")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> PostCambiarEstado(int id, [FromBody] string nuevoEstado)
@@ -224,7 +224,7 @@ namespace Auditorias.API.Controllers
         /// <param name="fechaFin">Fecha de fin para el rango de búsqueda (opcional).</param>
         /// <param name="estado">Estado de la auditoría ("Pendiente", "En Proceso", "Finalizada") (opcional).</param>
         /// <returns>Una lista filtrada de Auditorías envuelta en un mensaje de éxito.</returns>
-        
+
         // GET: api/Auditorias/Filtrar?fechaInicio=2025-10-01&estado=Pendiente
         [HttpGet("Filtrar")]
         [ProducesResponseType(StatusCodes.Status200OK)]
@@ -234,7 +234,7 @@ namespace Auditorias.API.Controllers
             [FromQuery] string? estado)
         {
             IQueryable<Auditoria> auditorias = _context.Auditorias
-                .Include(a => a.Responsable); 
+                .Include(a => a.Responsable);
 
             // 1. Aplicar filtro por Rango de Fechas
             if (fechaInicio.HasValue)
@@ -315,6 +315,52 @@ namespace Auditorias.API.Controllers
                     Auditoria = auditoria // Devuelve el objeto recién creado con el ID
                 }
             );
-         }
+        }
+
+        //// -------------------------------------------------------------------
+        ////  Elimina una Auditoría específica por su ID
+        //// -------------------------------------------------------------------
+
+        /// Elimina una Auditoría específica por su ID. SOLO PERMITIDO si su estado es "Finalizada".
+        /// </summary>
+        /// <param name="id">El ID de la Auditoría a eliminar.</param>
+        /// <returns>200 OK con mensaje de éxito, 404 si no se encuentra, o 400 si el estado no es "Finalizada".</returns>
+        /// 
+
+        // DELETE: api/Auditorias/5
+        [HttpDelete("{id}")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)] // Agregamos 400 para la restricción
+        public async Task<IActionResult> DeleteAuditoria(int id)
+        {
+            // 1. Buscar la auditoría
+            var auditoria = await _context.Auditorias.FindAsync(id);
+
+            if (auditoria == null)
+            {
+                _logger.LogWarning("Intento de eliminación de Auditoría fallida. ID {AuditoriaId} no encontrado.", id);
+                return NotFound(new { Mensaje = $"Error: Auditoría ID {id} no encontrada." });
+            }
+
+            // 2. ⚠️ NUEVA RESTRICCIÓN DE NEGOCIO: Validar el estado
+            if (auditoria.Estado != "Finalizada")
+            {
+                _logger.LogWarning("Eliminación de Auditoría denegada. ID {AuditoriaId} está en estado '{EstadoActual}' y no 'Finalizada'.",
+                    id,
+                    auditoria.Estado
+                );
+                return BadRequest(new { Mensaje = $"Solo se pueden eliminar las auditorías que están en estado 'Finalizada'. El estado actual es '{auditoria.Estado}'." });
+            }
+
+            // 3. Eliminar y guardar
+            _context.Auditorias.Remove(auditoria);
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation("Auditoría ID {AuditoriaId} eliminada exitosamente. Título: {Titulo}.", id, auditoria.Titulo);
+
+            // 4. Respuesta Exitosa
+            return Ok(new { Mensaje = $"Auditoría ID {id} ('{auditoria.Titulo}') eliminada exitosamente." });
+        }
     }
 }
